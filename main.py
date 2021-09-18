@@ -1,14 +1,33 @@
-from SDK.listExtension import ListExtension
+# based on VK-SDK v1.3
+
 import re
 
+import requests
 import vk_api
-from vk_api.longpoll import VkLongPoll, VkEventType
+from flask import Flask, redirect, request
+from vk_api.longpoll import VkEventType, VkLongPoll
+
+from SDK import cmd, database, imports, jsonExtension, user
+from SDK.listExtension import ListExtension
 from SDK.stringExtension import StringExtension
-from SDK.thread import Thread
-from SDK import (database, jsonExtension, user, imports, cmd)
+from SDK.thread import Thread, ThreadManager, requires_start
 
 config = jsonExtension.load("config.json")
 
+#https://oauth.vk.com/authorize?client_id=7944022&scope=73732&redirect_uri=http://127.0.0.1:5000/callback&display=page&response_type=code&revoke=1
+app = Flask(__name__)
+@app.route("/callback")
+@requires_start
+def callback_route():
+    code = request.url.split("=")[1]
+    if code.startswith("access_denied"):
+        return redirect("https://oauth.vk.com/blank.html", code=200)
+    response = requests.get(f"https://oauth.vk.com/access_token?client_id={config['client_id']}&client_secret={config['client_secret']}&redirect_uri={config['redirect_uri']}&code={code}").json()
+    access_token = response["access_token"]
+    user_id = response['user_id']
+    database.ThreadedStruct("user_profile", one_time=True, user_id = user_id).token = access_token
+    user.User(ThreadManager.get_main_thread().vk, user_id).write("Авторизация прошла успешно! Напишите \"Анализ\", чтобы начать анализ.", keyboard="Анализ")
+    return redirect("https://oauth.vk.com/blank.html", code=200)
 
 class LongPoll(VkLongPoll):
     def __init__(self, instance, *args, **kwargs):
@@ -39,6 +58,7 @@ class MainThread(Thread):
         self.longpoll = LongPoll(self, self.vk_session)
         self.vk = self.vk_session.get_api()
         self.group_id = "-" + re.findall(r'\d+', self.longpoll.server)[0]
+        self.started = True
         print("Bot started!")
         super().__init__(name="Main")
         self.poll()
@@ -93,4 +113,5 @@ class MainThread(Thread):
 if __name__ == "__main__":
     _thread = MainThread()
     _thread.start()
-    _thread.join()
+    _flask = Thread(target=app.run, name="Flask")
+    _flask.start()

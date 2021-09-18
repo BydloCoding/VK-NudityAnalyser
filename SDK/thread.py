@@ -41,11 +41,39 @@ class Thread(threading.Thread):
             task = self.tasks.pop(0)
             task[0](*task[1], **task[2])
 
+def requires_start(func):
+    def call_wrap(*args, **kwargs):
+        thread = ThreadManager.get_main_thread()
+        if not hasattr(thread, "started") or not thread.started:
+            def dummy():
+                thread = ThreadManager.get_main_thread()
+                if not hasattr(thread, "started") or not thread.started:
+                    return
+                threading.current_thread().stopped = True
+                func(*args, **kwargs)
+            every(interval=5)(dummy)
+        else:
+            func(*args, **kwargs)
+
+    return call_wrap
+
+def threaded(*args, **kwargs):
+    def func_wrap(func):
+        def call_wrap(*a, **b):
+            Thread(*args, **kwargs, target=func, args=a, kwargs=b).start()
+        return call_wrap      
+    return func_wrap
 
 class Every(Thread):
-    def __init__(self, callback, interval, *args, onExecCallback=None, **kwargs):
-        self.callback = callback
+    def __init__(self, interval, *args, onExecCallback=None, callback = None, **kwargs):
+        if callback is not None:
+            self.callback = callback
+        elif hasattr(self, "loop"):
+            self.callback = self.loop
+        else:
+            raise Exception("Callback wasn't provided.")
         self.interval = interval
+        self.stopped = False
         self.event = threading.Event()
         self.onExecCallback = onExecCallback
         self.args = args
@@ -55,7 +83,7 @@ class Every(Thread):
     # override
     def run(self):
         self.callback(*self.args)
-        while not self.event.wait(self.interval):
+        while not self.event.wait(self.interval) and not self.stopped:
             if self.onExecCallback is not None:
                 self.onExecCallback()
             self.check_tasks()
@@ -64,6 +92,6 @@ class Every(Thread):
 
 def every(interval, *myArgs, callback=None, **myKwargs):
     def func_wrap(func):
-        return Every(func, interval, *myArgs, onExecCallback=callback, **myKwargs)
+        return Every(interval, *myArgs, onExecCallback=callback, **myKwargs, callback=func)
 
     return func_wrap

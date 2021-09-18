@@ -1,12 +1,12 @@
-import re
 import os
+import re
 import sqlite3
-from sqlite3 import Row
 import threading
 import typing
 from functools import partial
+from sqlite3 import Row
 
-from SDK import (thread, timeExtension, jsonExtension)
+from SDK import jsonExtension, thread, timeExtension
 from SDK.listExtension import ListExtension
 
 
@@ -58,7 +58,8 @@ class Struct(object):
                 self.setattr(k, v, False)
 
             fields = self.getFields()
-            keys = ", ".join(lst := list(fields))
+            lst = list(fields)
+            keys = ", ".join(lst)
             length = len(lst) - 1
             for i, value in enumerate(fields.values()):
                 values += "?"
@@ -266,7 +267,7 @@ class Database(object):
             args = args.dictionary
         if not isinstance(table_name, str):
             raise Exception(
-                f"Table name's type is not string (table_name was not provided correctly?)\n{query=}\n{args=}\n{table_name=}")
+                f"Table name's type is not string (table_name was not provided correctly?)\n{query}\n{args}\n{table_name}")
         myStruct: Struct = Struct.table_map[table_name](database=database or self
                                                         ) if fromSerialized is None else fromSerialized
         if struct is None:

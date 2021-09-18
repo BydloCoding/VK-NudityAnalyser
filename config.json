@@ -4,5 +4,9 @@
     "db_backups_folder": "backups/",
     "db_backup_interval": 43200,
     "sync_timezone": "Asia/Aden",
-    "vk_api_key": ""
+    "vk_api_key": "",
+    "client_id": "",
+    "client_secret": "",
+    "redirect_uri": "",
+    "known_porn_groups": [168003793, 165185338]
 }
